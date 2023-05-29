@@ -59,8 +59,12 @@ namespace TravelToCoolPlace.Controllers
         }
 
         [HttpGet("TemperatureForecasts")]
-        public async Task<IActionResult> GetTemperatureForecasts()
+        public async Task<IActionResult> GetTemperatureForecasts([FromHeader(Name = "Authorization")] string accessToken)
         {
+            bool isValidToken = ValidateAccessToken(accessToken);
+            if (!isValidToken)
+                return Unauthorized("Invalid access token.");
+
             var districts = await GetDistricts();
             if (districts == null)
                 return NotFound("District data not available.");
@@ -71,8 +75,12 @@ namespace TravelToCoolPlace.Controllers
         }
 
         [HttpGet("CoolestDistricts")]
-        public async Task<IActionResult> GetCoolestDistricts()
+        public async Task<IActionResult> GetCoolestDistricts([FromHeader(Name = "Authorization")] string accessToken)
         {
+            bool isValidToken = ValidateAccessToken(accessToken);
+            if (!isValidToken)
+                return Unauthorized("Invalid access token.");
+
             var districts = await GetDistricts();
             if (districts == null)
                 return NotFound("District data not available.");
@@ -96,8 +104,12 @@ namespace TravelToCoolPlace.Controllers
         }
 
         [HttpGet("TravelSuggestion")]
-        public async Task<IActionResult> TravelSuggestion(string friendLocation, string destination, DateTime travelDate)
+        public async Task<IActionResult> TravelSuggestion([FromHeader(Name = "Authorization")] string accessToken, string friendLocation, string destination, DateTime travelDate)
         {
+            bool isValidToken = ValidateAccessToken(accessToken);
+            if (!isValidToken)
+                return Unauthorized("Invalid access token.");
+
             var districts = await GetDistricts();
             if (districts == null)
                 return NotFound("District data not available.");
@@ -329,6 +341,30 @@ namespace TravelToCoolPlace.Controllers
         private bool IsValidUser(string username, string password)
         {
             return username == "raskin" && password == "123";
+        }
+
+        private bool ValidateAccessToken(string accessToken)
+        {
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidIssuer = "your_issuer",
+                ValidAudience = "your_audience",
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecretKey))
+            };
+
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                tokenHandler.ValidateToken(accessToken, validationParameters, out _);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         #endregion
