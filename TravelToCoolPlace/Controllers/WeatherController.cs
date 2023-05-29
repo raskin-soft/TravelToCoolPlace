@@ -59,6 +59,27 @@ namespace TravelToCoolPlace.Controllers
 
             return Ok(coolestDistricts);
         }
+
+        [HttpGet("ShouldTravel")]
+        public async Task<IActionResult> ShouldTravel(string friendLocation, string destination, DateTime travelDate)
+        {
+            var districts = await GetDistricts();
+            if (districts == null)
+                return NotFound("District data not available.");
+
+            var friendForecast = await GetTravelWeatherForecasts(districts, friendLocation, travelDate);
+            var destinationForecast = await GetTravelWeatherForecasts(districts, destination, travelDate);
+
+            if (friendForecast == null || destinationForecast == null)
+                return NotFound("Weather forecast not available for one or both locations.");
+
+            var result = (friendForecast[0].Temperature < destinationForecast[0].Temperature)
+                ? $"Should Travel to {friendLocation}"
+                : $"Should Travel to {destination}";
+
+            return Ok(result);
+        }
+
         #endregion
 
 
@@ -200,6 +221,57 @@ namespace TravelToCoolPlace.Controllers
 
             return forecasts;
 
+
+        }
+
+        private async Task<List<WeatherForecast>> GetTravelWeatherForecasts(List<District> districts, string location, DateTime travelDate)
+        {
+            double latitude = 0.0, longitude = 0.0;
+
+            District result = districts.FirstOrDefault(d => d.Name == location);
+            if (result != null)
+            {
+                latitude = result.Latitude;
+                longitude = result.Longitude;
+            }
+
+            var forecasts = new List<WeatherForecast>();
+            var response = await _httpClient.GetAsync($"{WeatherApiUrl}?latitude={latitude}&longitude={longitude}&hour=14&hourly=temperature_2m&date={travelDate}");
+
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                dynamic weatherData = JObject.Parse(json);
+
+                var hourlyData = weatherData.hourly;
+
+                var timeList = (JArray)hourlyData.time;
+                var temperatureList = (JArray)hourlyData.temperature_2m;
+
+                var getTwoPM = 14; // 2 PM
+
+                for (int i = 1; i <= 7; i++)
+                {
+                    DateTime date = DateTime.Parse(timeList[getTwoPM].ToString());
+                    double temperature = (double)temperatureList[getTwoPM];
+
+                    getTwoPM = getTwoPM + 24;
+
+                    WeatherForecast forecast = new WeatherForecast
+                    {
+                        Name = location,
+                        Date = date,
+                        Temperature = temperature
+                    };
+
+                    forecasts.Add(forecast);
+                }
+            }
+
+            var desiredForecasts = forecasts.Where(forecast => forecast.Date.Date == travelDate.Date).ToList();
+
+            return desiredForecasts;
 
         }
 
