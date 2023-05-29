@@ -34,6 +34,31 @@ namespace TravelToCoolPlace.Controllers
 
             return Ok(forecasts);
         }
+
+        [HttpGet("CoolestDistricts")]
+        public async Task<IActionResult> GetCoolestDistricts()
+        {
+            var districts = await GetDistricts();
+            if (districts == null)
+                return NotFound("District data not available.");
+
+            var forecasts = await GetCoolestWeatherForecasts(districts);
+            if (forecasts == null)
+                return NotFound("Weather forecasts not available.");
+
+            var coolestDistricts = forecasts
+                .GroupBy(f => f.Name)
+                .Select(g => new
+                {
+                    DistrictName = g.Key,
+                    AverageTemperature = g.Average(f => f.Temperature)
+                })
+                .OrderBy(d => d.AverageTemperature)
+                .Take(10)
+                .ToList();
+
+            return Ok(coolestDistricts);
+        }
         #endregion
 
 
@@ -132,6 +157,51 @@ namespace TravelToCoolPlace.Controllers
             return forecasts;
         }
 
+        private async Task<List<WeatherForecast>> GetCoolestWeatherForecasts(List<District> districts)
+        {
+            var forecasts = new List<WeatherForecast>();
+
+            foreach (var district in districts)
+            {
+                var response = await _httpClient.GetAsync($"{WeatherApiUrl}?latitude={district.Latitude}&longitude={district.Longitude}&current_weather={true}&forecast_days=7&hourly=temperature_2m");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    dynamic weatherData = JObject.Parse(json);
+
+                    var hourlyData = weatherData.hourly;
+                    var timeList = (JArray)hourlyData.time;
+                    var temperatureList = (JArray)hourlyData.temperature_2m;
+
+                    var getTwoPM = 14; // 2 PM
+
+                    for (int i = 1; i <= 7; i++)
+                    {
+                        DateTime date = DateTime.Parse(timeList[getTwoPM].ToString());
+                        double temperature = (double)temperatureList[getTwoPM];
+
+                        getTwoPM += 24;
+
+                        WeatherForecast forecast = new WeatherForecast
+                        {
+                            Name = district.Name,
+                            Date = date,
+                            Temperature = temperature
+                        };
+
+                        forecasts.Add(forecast);
+
+                    }
+
+
+                }
+            }
+
+            return forecasts;
+
+
+        }
 
         #endregion
     }
