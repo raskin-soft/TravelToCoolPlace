@@ -2,6 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using TravelToCoolPlace.Models;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace TravelToCoolPlace.Controllers
 {
@@ -10,19 +14,50 @@ namespace TravelToCoolPlace.Controllers
     public class WeatherController : ControllerBase
     {
         #region Constructor and Properties
+
         private const string WeatherApiUrl = "https://api.open-meteo.com/v1/forecast";
         private readonly HttpClient _httpClient;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly string _jwtSecretKey = "tHIs_iS_mY_secREt_kEY_foR_StraTIvE_aSsiGNmenT_@2023";
 
         public WeatherController(IHttpClientFactory httpClientFactory)
         {
             _httpClientFactory = httpClientFactory;
             _httpClient = _httpClientFactory.CreateClient();
         }
+
         #endregion
 
 
-        #region API's
+        #region All API's
+
+        [HttpPost("GetAuthenticated")]
+        public ActionResult<Token> GenerateJwtToken(string username, string password)
+        {
+            // Perform authentication logic and validate the username and password
+            if (IsValidUser(username, password))
+            {
+                // Create claims for the user
+                var claims = new[]
+                {
+            new Claim(ClaimTypes.Name, username)
+        };
+
+                // Generate JWT token
+                var token = GenerateToken(claims);
+
+                var tokenModel = new Token
+                {
+                    AccessToken = token,
+                    Expires = DateTime.UtcNow.AddHours(1)
+                };
+
+                return Ok(tokenModel);
+            }
+
+            return Unauthorized();
+        }
+
         [HttpGet("TemperatureForecasts")]
         public async Task<IActionResult> GetTemperatureForecasts()
         {
@@ -60,8 +95,8 @@ namespace TravelToCoolPlace.Controllers
             return Ok(coolestDistricts);
         }
 
-        [HttpGet("ShouldTravel")]
-        public async Task<IActionResult> ShouldTravel(string friendLocation, string destination, DateTime travelDate)
+        [HttpGet("TravelSuggestion")]
+        public async Task<IActionResult> TravelSuggestion(string friendLocation, string destination, DateTime travelDate)
         {
             var districts = await GetDistricts();
             if (districts == null)
@@ -74,8 +109,8 @@ namespace TravelToCoolPlace.Controllers
                 return NotFound("Weather forecast not available for one or both locations.");
 
             var result = (friendForecast[0].Temperature < destinationForecast[0].Temperature)
-                ? $"Should Travel to {friendLocation}"
-                : $"Should Travel to {destination}";
+                ? $"Your Friend's Location is Coolest, So You Should Travel to {friendLocation}"
+                : $"Your Location is Coolest, So You Should Travel to {destination}";
 
             return Ok(result);
         }
@@ -83,7 +118,7 @@ namespace TravelToCoolPlace.Controllers
         #endregion
 
 
-        #region Methods
+        #region All Methods
         private async Task<List<District>> GetDistricts()
         {
             List<District> districts = new List<District>();
@@ -273,6 +308,27 @@ namespace TravelToCoolPlace.Controllers
 
             return desiredForecasts;
 
+        }
+
+        private string GenerateToken(Claim[] claims)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecretKey));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: "your_issuer",
+                audience: "your_audience",
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(1),
+                signingCredentials: credentials
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private bool IsValidUser(string username, string password)
+        {
+            return username == "raskin" && password == "123";
         }
 
         #endregion
