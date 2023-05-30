@@ -83,7 +83,7 @@ Download and instal Visual Studio 2022 [Link](https://visualstudio.microsoft.com
 ### Git URL of the Project
 Clone the project from this [Git Repo](https://github.com/raskin-soft/TravelToCoolPlace.git) then run the application from visual studio 2022 </br></br>
 
-### Download the Extension
+### Download the Extension (If you don't found below extensions under Dependencies > Packages)
 Right click on project and click Manage Nuget Packages then install below packages
 1. Microsoft.AspNetCore.Mvc.Newtonsoftjson(6.0.16)
 2. System.IdentityModel.Tokens.Jwt(6.30.1)
